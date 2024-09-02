@@ -1,4 +1,3 @@
-use cli_clipboard::get_contents;
 use std::{env::var, fs, error::Error};
 use argh::FromArgs;
 use reqwest::{Client, header::AUTHORIZATION};
@@ -22,9 +21,6 @@ struct Cli {
     /// prompt to send
     #[argh(option, short ='p')]
     prompt: Option<String>,
-    /// clipboard content
-    #[argh(switch, short ='c')]
-    clipboard: bool,
     /// if MOA should be used 
     #[argh(switch, short ='m')]
     moa: bool,
@@ -45,20 +41,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let args: Cli = argh::from_env();
-    // io::stdin().read_to_string(&mut task)?;
-    // if task.trim().is_empty() {
-    //     return Err("No input provided".into());
-    // }
 
     let prompt: String = args.prompt.map(|x| wrap(x, "query")).unwrap_or(String::new());
     let file_content = if let Some(file_path) = &args.file {
         wrap(fs::read_to_string(&file_path)?, "file_contents")
     } else { String::new() };
-    let clipboard: String = if args.clipboard {
-        wrap(get_contents()?, "snippet")
-    } else { String::new() };
 
-    let task = format!("{}\n{}\n{}", prompt, clipboard, file_content);
+    let task = format!("{}\n{}", prompt, file_content);
 
     let client = Client::new();
     let models_url = String::from(URL_V1)+MODELS;
