@@ -12,7 +12,7 @@ pub struct Payload {
     pub message: String,
     /// The temperature parameter for controlling randomness in the response.
     #[serde(default)]
-    pub temperature: f64,
+    pub temperature: f32,
 }
 
 impl Payload {
@@ -21,7 +21,7 @@ impl Payload {
     /// * `models` - A vector of model names to be used.
     /// * `message` - The message to be processed.
     /// * `temperature` - An optional temperature value. If None, defaults to 0.0.
-    pub fn new(models: &Vec<String>, message: &String, temperature: Option<f64>) -> Self {
+    pub fn new(models: &Vec<String>, message: &String, temperature: Option<f32>) -> Self {
         Self {
             models: models.to_owned(),
             message: message.to_owned(),
