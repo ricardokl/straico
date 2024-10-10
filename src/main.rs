@@ -14,30 +14,30 @@ const COMPLETION: &str = "/prompt/completion";
 const MODELS: &str = "/models";
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about)]
+#[command(author, version, about)]
 struct Cli {
     /// Files to attach
-    #[clap(short, long)]
+    #[arg(short, long)]
     files: Vec<String>,
 
     /// Prompt to send
-    #[clap(short, long)]
+    #[arg(short, long)]
     prompt: Option<String>,
 
     /// Use clipboard content
-    #[clap(short, long)]
+    #[arg(short, long)]
     clipboard: bool,
 
     /// Use MOA
-    #[clap(short, long)]
+    #[arg(short, long)]
     moa: bool,
 
     /// List models (must be used alone)
-    #[clap(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "user"])]
+    #[arg(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "user"])]
     models: bool,
 
     /// User flag (must be used alone)
-    #[clap(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "models"])]
+    #[arg(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "models"])]
     user: bool,
 }
 
