@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ArgGroup};
 use cli_clipboard::get_contents;
 use reqwest::{header::AUTHORIZATION, Client};
 use std::{env::var, error::Error, fs};
@@ -15,30 +15,35 @@ const MODELS: &str = "/models";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
+#[command(group(
+    ArgGroup::new("base_flags")
+        .required(true)
+        .args(&["prompt", "models", "user"])
+))]
 struct Cli {
-    /// Files to attach
-    #[arg(short, long)]
-    files: Vec<String>,
-
     /// Prompt to send
     #[arg(short, long)]
     prompt: Option<String>,
 
-    /// Use clipboard content
-    #[arg(short, long)]
-    clipboard: bool,
-
-    /// Use MOA
-    #[arg(short, long)]
-    moa: bool,
-
     /// List models (must be used alone)
-    #[arg(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "user"])]
+    #[arg(long)]
     models: bool,
 
     /// User flag (must be used alone)
-    #[arg(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "models"])]
+    #[arg(long)]
     user: bool,
+
+    /// Files to attach (requires '--prompt')
+    #[arg(short, long, requires = "prompt")]
+    files: Vec<String>,
+
+    /// Use clipboard content (requires '--prompt')
+    #[arg(short, long, requires = "prompt")]
+    clipboard: bool,
+
+    /// Use MOA (requires '--prompt')
+    #[arg(short, long, requires = "prompt")]
+    moa: bool,
 }
 
 #[tokio::main]
@@ -58,26 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let args = Cli::parse();
 
-    // Validate arguments
-    if args.models as u8 + args.user as u8 > 1 {
-        eprintln!("Error: '--models' and '--user' flags cannot be used together.");
-        std::process::exit(1);
-    }
-
-    if args.models || args.user {
-        // Must be used alone
-        if args.prompt.is_some() || !args.files.is_empty() || args.clipboard || args.moa {
-            eprintln!("Error: '--models' and '--user' flags must be used alone.");
-            std::process::exit(1);
-        }
-    } else {
-        // Neither 'models' nor 'user' used
-        // 'prompt' is required
-        if args.prompt.is_none() {
-            eprintln!("Error: '--prompt' is required when neither '--models' nor '--user' flags are used.");
-            std::process::exit(1);
-        }
-    }
+    // The argument validation is now handled by clap
 
     let client = Client::new();
     let models_url = format!("{}{}", URL_V1, MODELS);
@@ -102,7 +88,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Proceed with prompt handling
-    let prompt = wrap(args.prompt.unwrap(), "query");
+    let prompt = wrap(args.prompt.unwrap_or_default(), "query");
 
     let mut file_contents = String::new();
     for file_path in &args.files {
