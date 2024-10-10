@@ -1,4 +1,4 @@
-use argh::FromArgs;
+use clap::Parser;
 use cli_clipboard::get_contents;
 use reqwest::{header::AUTHORIZATION, Client};
 use std::{env::var, error::Error, fs};
@@ -13,24 +13,32 @@ const URL_V1: &str = "https://api.straico.com/v1";
 const COMPLETION: &str = "/prompt/completion";
 const MODELS: &str = "/models";
 
-#[derive(FromArgs)]
-/// Extra option
+#[derive(Parser, Debug)]
+#[clap(author, version, about)]
 struct Cli {
-    /// files to attach
-    #[argh(option, short = 'f')]
+    /// Files to attach
+    #[clap(short, long)]
     files: Vec<String>,
-    /// prompt to send
-    #[argh(option, short = 'p')]
+
+    /// Prompt to send
+    #[clap(short, long)]
     prompt: Option<String>,
-    /// clipboard content
-    #[argh(switch, short = 'c')]
+
+    /// Use clipboard content
+    #[clap(short, long)]
     clipboard: bool,
-    /// if MOA should be used
-    #[argh(switch, short = 'm')]
+
+    /// Use MOA
+    #[clap(short, long)]
     moa: bool,
-    /// list models
-    #[argh(switch)]
+
+    /// List models (must be used alone)
+    #[clap(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "user"])]
     models: bool,
+
+    /// User flag (must be used alone)
+    #[clap(long, conflicts_with_all=&["prompt", "clipboard", "moa", "files", "models"])]
+    user: bool,
 }
 
 #[tokio::main]
@@ -48,49 +56,76 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Err(_) => return Err("No api key found".into()),
     };
 
-    let args: Cli = argh::from_env();
+    let args = Cli::parse();
 
-    let prompt: String = args
-        .prompt
-        .map(|x| wrap(x, "query"))
-        .unwrap_or(String::new());
-
-    let mut file_contents = String::new();
-    for file_path in &args.files {
-        let content = fs::read_to_string(file_path)?;
-        file_contents.push_str(&wrap(content, "file_contents"));
+    // Validate arguments
+    if args.models as u8 + args.user as u8 > 1 {
+        eprintln!("Error: '--models' and '--user' flags cannot be used together.");
+        std::process::exit(1);
     }
-    let clipboard: String = if args.clipboard {
-        wrap(get_contents()?, "snippet")
-    } else {
-        String::new()
-    };
 
-    let task = format!("{}\n{}\n{}", prompt, clipboard, file_contents);
+    if args.models || args.user {
+        // Must be used alone
+        if args.prompt.is_some() || !args.files.is_empty() || args.clipboard || args.moa {
+            eprintln!("Error: '--models' and '--user' flags must be used alone.");
+            std::process::exit(1);
+        }
+    } else {
+        // Neither 'models' nor 'user' used
+        // 'prompt' is required
+        if args.prompt.is_none() {
+            eprintln!("Error: '--prompt' is required when neither '--models' nor '--user' flags are used.");
+            std::process::exit(1);
+        }
+    }
 
     let client = Client::new();
-    let models_url = String::from(URL_V1) + MODELS;
-    let comp_url = String::from(URL_V1) + COMPLETION;
+    let models_url = format!("{}{}", URL_V1, MODELS);
+    let comp_url = format!("{}{}", URL_V1, COMPLETION);
 
-    let result: String;
-    if task.len() == 2 && args.models {
-        result = client
+    if args.models {
+        let result = client
             .get(models_url)
             .header(AUTHORIZATION, format!("Bearer {}", api_key))
             .send()
             .await?
             .text()
             .await?;
-    } else if task.len() > 2 && args.moa {
-        result = moa(task, &client, &comp_url, &api_key, layer_models, ag_model).await?;
-    } else if task.len() > 2 && !args.moa {
-        result = Payload::new(&vec![ag_model.to_string()], &task)
+        println!("{}", result);
+        return Ok(());
+    }
+
+    if args.user {
+        // Handle 'user' flag action here
+        println!("User flag used.");
+        return Ok(());
+    }
+
+    // Proceed with prompt handling
+    let prompt = wrap(args.prompt.unwrap(), "query");
+
+    let mut file_contents = String::new();
+    for file_path in &args.files {
+        let content = fs::read_to_string(file_path)?;
+        file_contents.push_str(&wrap(content, "file_contents"));
+    }
+
+    let clipboard_content = if args.clipboard {
+        wrap(get_contents()?, "snippet")
+    } else {
+        String::new()
+    };
+
+    let task = format!("{}\n{}\n{}", prompt, clipboard_content, file_contents);
+
+    let result = if args.moa {
+        moa(task, &client, &comp_url, &api_key, layer_models, ag_model).await?
+    } else {
+        Payload::new(&vec![ag_model.to_string()], &task)
             .request(&client, &comp_url, &api_key)
             .await?
-            .process_response(ag_model)?;
-    } else {
-        result = String::from("Nothing to do");
-    }
+            .process_response(ag_model)?
+    };
 
     println!("{}", result);
     Ok(())
