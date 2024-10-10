@@ -1,4 +1,4 @@
-use clap::{Parser, ArgGroup};
+use clap::{ArgGroup, Parser};
 use cli_clipboard::get_contents;
 use reqwest::{header::AUTHORIZATION, Client};
 use std::{env::var, error::Error, fs};
@@ -25,23 +25,23 @@ struct Cli {
     #[arg(short, long)]
     prompt: Option<String>,
 
-    /// List models (must be used alone)
+    /// List models
     #[arg(long)]
     models: bool,
 
-    /// User flag (must be used alone)
+    /// User flag
     #[arg(long)]
     user: bool,
 
-    /// Files to attach (requires '--prompt')
+    /// Files to attach
     #[arg(short, long, requires = "prompt")]
     files: Vec<String>,
 
-    /// Use clipboard content (requires '--prompt')
+    /// Use clipboard content
     #[arg(short, long, requires = "prompt")]
     clipboard: bool,
 
-    /// Use MOA (requires '--prompt')
+    /// Use MOA
     #[arg(short, long, requires = "prompt")]
     moa: bool,
 }
