@@ -1,6 +1,7 @@
 use clap::{ArgGroup, Parser};
 use cli_clipboard::get_contents;
-use reqwest::{header::AUTHORIZATION, Client};
+use reqwest::Client;
+use serde_json::Value;
 use std::{env::var, error::Error, fs};
 
 mod api_response;
@@ -72,12 +73,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if args.models {
         let result = client
             .get(models_url)
-            .header(AUTHORIZATION, format!("Bearer {}", api_key))
+            .bearer_auth(api_key)
             .send()
             .await?
-            .text()
+            .json::<Value>()
             .await?;
-        println!("{}", result);
+        println!("{}", serde_json::to_string_pretty(&result["data"]["chat"])?);
         return Ok(());
     }
 
@@ -107,7 +108,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let result = if args.moa {
         moa(task, &client, &comp_url, &api_key, layer_models, ag_model).await?
     } else {
-        Payload::new(&vec![ag_model.to_string()], &task)
+        Payload::new(&vec![ag_model.to_string()], &task, None)
             .request(&client, &comp_url, &api_key)
             .await?
             .process_response(ag_model)?
